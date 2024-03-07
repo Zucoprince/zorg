@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: "."
+      target: "dev"
+    depends_on:
+      - "mysql"
+      - "redis"
+    tty: true
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+
+  nginx:
+    build:
+      context: "."
+      target: "nginx"
+    depends_on:
+      - "app"
+    tty: true
+    ports:
+      - 8000:80
+    volumes_from:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    tty: true
+    env_file:
+      - ".env"
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql:/var/lib/mysql
+    command: "--default-authentication-plugin=mysql_native_password"
+    cap_add:
+      - SYS_NICE # CAP_SYS_NICE
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=laravel
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+
+  composer:
+    build:
+      context: "."
+      target: "app"
+    container_name: composer_back
+    depends_on:
+      - app
+    volumes_from:
+      - app
+    working_dir: /var/www
+    user: "1000:1000"
+    entrypoint: ["composer"]
+
+  artisan:
+    build:
+      context: "."
+      target: "app"
+    container_name: artisan_back
+    depends_on:
+      - mysql
+    volumes_from:
+      - app
+    working_dir: /var/www
+    entrypoint: ["php", "artisan"]
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
+    ports:
+      - 8025:8025
+
+volumes:
+  mysql:
